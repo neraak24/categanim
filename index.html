@@ -134,25 +134,27 @@
   .voando { position: fixed; z-index: 13; object-fit: contain; background: var(--card); border-radius: 14px; pointer-events: none;
             box-shadow: 0 14px 26px rgba(0,0,0,.28); transform: scale(1.07); transition: left .95s ease-in-out, top .95s ease-in-out; }
   @keyframes onda { from { transform: scale(.3); opacity: .9; } to { transform: scale(4); opacity: 0; } }
-  .seta { position: fixed; pointer-events: none; z-index: 14; color: var(--accent-dark); transform: translate(-50%, -50%); animation: sobe .7s ease-in-out infinite alternate; }
+  .seta { position: fixed; pointer-events: none; z-index: 14; color: var(--accent-dark); transform: translate(-50%, -50%); animation: sobe .7s ease-in-out 4 alternate; }
   @keyframes sobe { from { margin-top: 10px; } to { margin-top: -10px; } }
 
   @keyframes pula { 0% { transform: translateY(18px) scale(.8); opacity: 0; } 60% { transform: translateY(-8px) scale(1.04); opacity: 1; } 100% { transform: none; opacity: 1; } }
   .cel.pula { animation: pula .6s both; }
+  @keyframes embaralha { 0% { transform: translateY(-14px) rotate(-6deg) scale(.9); opacity: 0; } 55% { transform: translateY(4px) rotate(3deg) scale(1.03); opacity: 1; } 100% { transform: none; opacity: 1; } }
+  .cel.embaralha { animation: embaralha .5s ease-out both; }
   @keyframes brilha { 0%, 28%, 100% { box-shadow: 0 2px 0 var(--line); transform: none; }
                       14% { box-shadow: 0 0 0 5px rgba(127,168,143,.7), 0 8px 16px rgba(127,168,143,.35); transform: translateY(-5px); } }
-  .cel.brilha { animation: brilha 3.8s ease-in-out infinite both; }
+  .cel.brilha { animation: brilha 3.8s ease-in-out 2 both; }
   @keyframes pisca { 0%, 100% { box-shadow: none; } 50% { box-shadow: 0 0 0 7px rgba(127,168,143,.6); } }
-  .grupo.pisca { animation: pisca 1.6s ease-in-out infinite; }
+  .grupo.pisca { animation: pisca 1.6s ease-in-out 2; }
   @keyframes acende { 0%, 8%, 40%, 100% { background: rgba(255,253,249,.6); } 18%, 30% { background: rgba(127,168,143,.4); } }
-  .slot.acende { animation: acende 3s ease-in-out infinite both; }
+  .slot.acende { animation: acende 3s ease-in-out 2 both; }
   .slot.cont::after { content: attr(data-n); font-size: calc(var(--s) * .45); font-weight: 700; color: var(--accent-dark);
-                      opacity: 0; animation: cont 3s ease infinite both; animation-delay: inherit; }
+                      opacity: 0; animation: cont 3s ease 2 both; animation-delay: inherit; }
   @keyframes cont { 0%, 8%, 40%, 100% { opacity: 0; transform: scale(.5); } 18%, 30% { opacity: 1; transform: scale(1); } }
   @keyframes convida { 50% { transform: translateY(-4px) scale(1.05); } }
-  .cel.convida { animation: convida 1.5s ease-in-out infinite; }
+  .cel.convida { animation: convida 1.5s ease-in-out 2; }
   @keyframes alvo { 50% { background: rgba(127,168,143,.3); } }
-  .slot.alvo { animation: alvo 1.2s ease-in-out infinite; }
+  .slot.alvo { animation: alvo 1.2s ease-in-out 2; }
   @keyframes popimg { 0% { transform: scale(.6); } 60% { transform: scale(1.08); } 100% { transform: none; } }
   .slot img.pop { animation: popimg .45s; }
 
@@ -301,6 +303,8 @@
   const selos = { grupo1: false, grupo2: false };
   const selosNovos = new Set();
   const travadas = new Set();            // posições bloqueadas (cartas do exemplo)
+  let ordem = ORDEM_BANDEJA.slice();     // ordem atual das cartas na bandeja (embaralha a cada rodada no teste)
+  let embaralhando = false;              // anima as cartas quando acabaram de ser embaralhadas
   let execId = 0;                        // cancela animações em andamento
   let emVoo = null;                      // carta sendo carregada pela seta na demonstração
 
@@ -342,11 +346,12 @@
     const bandeja = $('bandeja');
     bandeja.innerHTML = '';
     const chamar_ = fase === 'tutorial' && passo >= 0 && PASSOS[passo].final && convidar && !selecionada;
-    ORDEM_BANDEJA.forEach((n, k) => {
+    ordem.forEach((n, k) => {
       const b = document.createElement('button');
       const colocada = slots.includes(n) || n === emVoo;
       b.className = 'cel' + (colocada ? ' vazia' : '') + (selecionada === n ? ' sel' : '') + (chamar_ && !colocada ? ' convida' : '');
       if (chamar_ && !colocada) b.style.animationDelay = (k * 140) + 'ms';
+      if (embaralhando && !colocada) { b.classList.add('embaralha'); b.style.animationDelay = (k * 45) + 'ms'; }
       b.setAttribute('aria-label', 'Imagem');
       if (!colocada) b.appendChild(criarImg(n));
       b.addEventListener('click', () => clicarCarta(n, colocada));
@@ -372,7 +377,7 @@
         g.appendChild(d);
       }
     });
-    ultimoIdx = -1; selosNovos.clear();
+    ultimoIdx = -1; selosNovos.clear(); embaralhando = false;
 
     atualizarBotao();
     $('lbl-rodada').textContent = fase === 'tutorial' ? 'Tutorial' : 'Rodada ' + rodada;
@@ -456,6 +461,7 @@
       a.style.left = (r.left + r.width / 2) + 'px'; a.style.top = (r.bottom + 12) + 'px';
       a.innerHTML = '<svg width="40" height="48" viewBox="0 0 48 56"><path d="M24 4 L44 28 H31 V52 H17 V28 H4 Z" fill="currentColor"/></svg>';
       document.body.appendChild(a);
+      setTimeout(() => a.remove(), 3000);
     });
   }
   function limparEfeitos() {
@@ -513,6 +519,16 @@
     return fila;
   }
 
+  function embaralhar() {
+    const anterior = ordem.join();
+    let nova;
+    do {
+      nova = ORDEM_BANDEJA.slice();
+      for (let i = nova.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [nova[i], nova[j]] = [nova[j], nova[i]]; }
+    } while (nova.join() === anterior);
+    ordem = nova; embaralhando = true;
+  }
+
   function arred(ms) { return Math.round(ms / 100) / 10; }   // segundos com 1 casa
 
   function registrarRodada(completa) {
@@ -522,6 +538,7 @@
       completa,
       grupo1: slots.slice(0, 4),   // número da carta em cada posição (null = vazio)
       grupo2: slots.slice(4, 8),
+      ordem_bandeja: ordem.slice(),   // ordem em que as cartas estavam na bandeja nesta rodada
       tempo_rodada_s: arred(agora - rodadaIniciadaEm),
       tempo_total_s: arred(agora - iniciadoEm)
     };
@@ -541,6 +558,7 @@
         tutorial: true,
         grupo1: slots.slice(0, 4),
         grupo2: slots.slice(4, 8),
+        ordem_bandeja: ordem.slice(),
         cartas_exemplo: EXEMPLO.map(e => e[0]),    // cartas colocadas pelo sistema (demonstração)
         tempo_s: arred(Date.now() - tutIniciadoEm)
       }
@@ -552,6 +570,7 @@
     fase = 'tutorial'; passo = -1; ativo = true; animando = false; convidar = false; liberado = false;
     slots = new Array(8).fill(null); selecionada = null; travadas.clear();
     selos.grupo1 = selos.grupo2 = false;
+    ordem = ORDEM_BANDEJA.slice();
     tutIniciadoEm = Date.now();
     $('lbl-tempo').style.visibility = 'hidden';
     mostrar('tela-teste');
@@ -581,7 +600,7 @@
     if (!(await esperar(500, id))) return;
     maoMostrar();
     for (const [carta, idx] of lista) {
-      const cel = document.querySelectorAll('#bandeja .cel')[ORDEM_BANDEJA.indexOf(carta)];
+      const cel = document.querySelectorAll('#bandeja .cel')[ordem.indexOf(carta)];
       const rc = cel.getBoundingClientRect();
       let c = centro(cel);
       maoPara(c.x, c.y, 1000);                          // a seta vai até o cartão
@@ -669,6 +688,7 @@
     travadas.clear(); selos.grupo1 = selos.grupo2 = false; convidar = false;
     slots = new Array(8).fill(null);
     selecionada = null; rodada = 1;
+    embaralhar();
     iniciadoEm = rodadaIniciadaEm = Date.now();
     legendaOff();
     $('lbl-tempo').style.visibility = MOSTRAR_TEMPO ? 'visible' : 'hidden';
@@ -684,6 +704,7 @@
     rodada++;
     slots = new Array(8).fill(null);
     selecionada = null;
+    embaralhar();
     rodadaIniciadaEm = Date.now();
     render();
   }
