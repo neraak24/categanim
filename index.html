@@ -99,6 +99,16 @@
                       100% { box-shadow: 0 3px 0 var(--accent-dark), 0 0 0 18px rgba(127,168,143,0); } }
 
   /* texto do balão: palavras entram uma a uma + balão "chama" a atenção */
+  .linha-legenda { display: flex; align-items: center; justify-content: center; gap: 16px; width: min(1060px, 96vw); }
+  .linha-legenda .caixa-frase { flex: 1 1 0; width: auto; min-width: 0; }
+  .acoes-legenda { display: flex; flex-direction: column; gap: 8px; align-items: stretch; flex: none; min-width: 150px; }
+  .acoes-legenda #btn-proximo { padding: 14px 26px; }
+  .acoes-legenda #btn-repetir { padding: 7px 16px; font-size: .9rem; text-align: center; }
+  @media (max-width: 700px) {
+    .linha-legenda { flex-wrap: wrap; }
+    .linha-legenda .caixa-frase { flex-basis: 100%; }
+    .acoes-legenda { flex-direction: row; justify-content: center; }
+  }
   .caixa-frase .texto { display: block; }
   .caixa-frase .w { display: inline-block; opacity: 0; animation: palavra .55s ease forwards; }
   @keyframes palavra {
@@ -201,7 +211,7 @@
     <div class="bandeja" id="bandeja"></div>
   </div>
 
-  <div class="rodape">
+  <div class="rodape" id="rodape">
     <button class="btn suave" id="btn-repetir">Repetir</button>
     <button class="btn" id="btn-proximo" disabled><span class="fill"></span><span class="rot">Próximo</span></button>
   </div>
@@ -252,7 +262,9 @@
 
   const params = new URLSearchParams(location.search);
   const TOKEN  = params.get('t');
-  const DEMO   = params.get('demo') === '1';   // modo de ensaio: não valida nem grava nada
+  const EXIGIR_HUB = false;                    // false = SEM bloqueio do hub: abre direto, sem token, e não grava nada (bom para editar)
+                                               // true  = só abre por link do hub (valida o token e grava os resultados)
+  const DEMO   = !EXIGIR_HUB || params.get('demo') === '1';   // modo livre/ensaio: não valida nem grava nada
 
   /* =====================  TUTORIAL: INSTRUÇÕES  ===================== */
   const ESPERA_CONTINUAR_S = 10;   // o botão "Continuar" só libera depois desse tempo em cada instrução
@@ -377,13 +389,22 @@
   }
 
   /* ---- legenda do tutorial: uma instrução por vez, com efeito nas palavras ---- */
+  function devolverBotoes() {            // tira os botões da legenda e põe de volta no rodapé
+    const r = $('rodape');
+    r.appendChild($('btn-repetir')); r.appendChild($('btn-proximo'));
+  }
   function criarLegenda() {
     const l = $('legenda');
+    devolverBotoes();
     l.innerHTML = '';
+    const linha = document.createElement('div'); linha.className = 'linha-legenda';
     const caixa = document.createElement('div'); caixa.className = 'caixa-frase'; caixa.id = 'caixa-frase';
+    const acoes = document.createElement('div'); acoes.className = 'acoes-legenda';
+    acoes.appendChild($('btn-proximo')); acoes.appendChild($('btn-repetir'));   // botões ao lado da instrução
+    linha.appendChild(caixa); linha.appendChild(acoes);
     const pontos = document.createElement('div'); pontos.className = 'pontos';
     PASSOS.forEach(() => pontos.appendChild(document.createElement('i')));
-    l.appendChild(caixa); l.appendChild(pontos);
+    l.appendChild(linha); l.appendChild(pontos);
     l.style.display = 'flex';
   }
   function mostrarTexto(i) {
@@ -402,7 +423,7 @@
       p.classList.toggle('atual', k === i); p.classList.toggle('lida', k < i);
     });
   }
-  function legendaOff() { const l = $('legenda'); l.style.display = 'none'; l.innerHTML = ''; }
+  function legendaOff() { devolverBotoes(); const l = $('legenda'); l.style.display = 'none'; l.innerHTML = ''; }
 
   /* ---- mãozinha, ondas e setas ---- */
   const mao = $('mao');
@@ -718,7 +739,7 @@
   /* =====================  VALIDAÇÃO DO LINK  ===================== */
   async function validar() {
     if (DEMO) {
-      $('msg-inicio').textContent = 'Modo de ensaio';
+      $('msg-inicio').textContent = EXIGIR_HUB ? 'Modo de ensaio' : 'Modo de edição (sem hub)';
       $('btn-iniciar').disabled = false;
       return;
     }
