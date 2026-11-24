@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://bjzmlvsskhfrkvblvsjj.supabase.co; base-uri 'self'; form-action 'none'; object-src 'none'">
+<meta name="robots" content="noindex, nofollow">
+<title>Agrupamento</title>
+<style>
+  :root {
+    --bg: #fbf7f0;
+    --card: #fffdf9;
+    --ink: #4a4039;
+    --soft: #b9ab9b;
+    --line: #dccfbe;
+    --group: #f3ebdf;
+    --accent: #7fa88f;
+    --accent-dark: #5f8a70;
+    --warn: #c9826b;
+    --s: 100px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-rounded, "Nunito", "Segoe UI", system-ui, -apple-system, sans-serif;
+    user-select: none; -webkit-user-select: none;
+    touch-action: manipulation;
+    overflow: hidden;
+  }
+  img { -webkit-user-drag: none; pointer-events: none; }
+
+  /* ---------- telas ---------- */
+  .tela { position: fixed; inset: 0; display: none; }
+  .tela.ativa { display: flex; }
+  .centro { align-items: center; justify-content: center; flex-direction: column; gap: 22px; text-align: center; padding: 24px; }
+  .centro h1 { font-size: 2.2rem; font-weight: 700; margin: 0; letter-spacing: .02em; }
+  .centro p { margin: 0; color: var(--soft); font-size: 1rem; max-width: 30ch; }
+
+  button { font: inherit; color: inherit; cursor: pointer; }
+  .btn {
+    border: 2px solid var(--accent-dark); background: var(--accent); color: #fff;
+    border-radius: 999px; padding: 12px 30px; font-weight: 700; font-size: 1.05rem;
+    box-shadow: 0 3px 0 var(--accent-dark); transition: transform .08s, box-shadow .08s, opacity .2s;
+  }
+  .btn:active:not(:disabled) { transform: translateY(2px); box-shadow: 0 1px 0 var(--accent-dark); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; }
+  .btn.suave { background: transparent; color: var(--ink); border-color: var(--line); box-shadow: none; }
+  .btn.alerta { background: var(--card); color: var(--warn); border-color: var(--warn); box-shadow: 0 3px 0 var(--warn); }
+
+  /* ---------- teste ---------- */
+  #tela-teste { flex-direction: column; padding: max(10px, env(safe-area-inset-top)) 14px max(10px, env(safe-area-inset-bottom)); }
+  .topo { display: flex; align-items: center; justify-content: space-between; height: 46px; flex: none; }
+  .topo .rodada { color: var(--soft); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; font-size: .8rem; }
+  .topo .tempo { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--soft); min-width: 64px; text-align: right; }
+  .topo .tempo.fim { color: var(--warn); }
+  #btn-finalizar { padding: 8px 18px; font-size: .9rem; }
+
+  .palco { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 18px; min-height: 0; }
+  .quadro { display: flex; gap: 28px; justify-content: center; }
+  .grupo { display: grid; grid-template-columns: repeat(4, var(--s)); gap: 8px; padding: 10px; background: var(--group); border-radius: 22px; }
+  .bandeja { display: grid; grid-template-columns: repeat(8, var(--s)); gap: 8px; justify-content: center; }
+
+  .cel, .slot {
+    width: var(--s); height: var(--s); padding: 0; border-radius: 14px;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  .cel { border: 2px solid transparent; background: var(--card); box-shadow: 0 2px 0 var(--line); transition: transform .12s, box-shadow .12s, border-color .12s; }
+  .cel img, .slot img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .cel.vazia { background: transparent; box-shadow: none; border: 2px dashed var(--line); opacity: .55; cursor: default; }
+  .cel.sel { transform: translateY(-4px) scale(1.04); border-color: var(--accent); box-shadow: 0 8px 18px rgba(95,138,112,.28); }
+  .slot { border: 2px dashed var(--soft); background: rgba(255,253,249,.6); transition: border-color .12s, background .12s; }
+  .slot.cheio { border: 2px solid transparent; background: var(--card); box-shadow: 0 2px 0 var(--line); }
+  .slot.alvo { border-color: var(--accent); background: rgba(127,168,143,.14); }
+
+  .legenda { display: none; flex-direction: column; align-items: center; gap: 10px; flex: none; margin-bottom: 12px; }
+  .caixa-frase {
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    width: min(860px, 94vw); min-height: 96px; padding: 12px 24px;
+    background: var(--card); border: 2px solid var(--line); border-radius: 22px; box-shadow: 0 3px 0 var(--line);
+    font-size: clamp(1.1rem, 2.1vw, 1.5rem); line-height: 1.4; animation: entra .45s ease both;
+  }
+  @keyframes entra { from { opacity: 0; transform: translateY(12px) scale(.96); } to { opacity: 1; transform: none; } }
+  .pontos { display: flex; gap: 8px; height: 12px; }
+  .pontos i { display: block; width: 10px; height: 10px; border-radius: 50%; background: var(--line); transition: background .3s, transform .3s; }
+  .pontos i.lida { background: var(--soft); }
+  .pontos i.atual { background: var(--accent); transform: scale(1.35); }
+
+  /* botão Continuar com trava de tempo */
+  .btn { position: relative; overflow: hidden; }
+  .btn .rot { position: relative; z-index: 1; }
+  .btn .fill { position: absolute; inset: 0; background: var(--accent); transform: scaleX(0); transform-origin: left; opacity: 0; }
+  .btn.espera:disabled { opacity: 1; background: #dbe8df; border-color: #b9d0c0; color: var(--ink); box-shadow: 0 3px 0 #b9d0c0; cursor: wait; }
+  .btn.espera .fill { opacity: 1; animation: encher var(--espera, 10s) linear forwards; }
+  @keyframes encher { to { transform: scaleX(1); } }
+  .btn.libera { animation: libera 1s ease-out 3; }
+  @keyframes libera { 0% { box-shadow: 0 3px 0 var(--accent-dark), 0 0 0 0 rgba(127,168,143,.8); }
+                      100% { box-shadow: 0 3px 0 var(--accent-dark), 0 0 0 18px rgba(127,168,143,0); } }
+
+  /* texto do balão: palavras entram uma a uma + balão "chama" a atenção */
+  .caixa-frase .texto { display: block; }
+  .caixa-frase .w { display: inline-block; opacity: 0; animation: palavra .55s ease forwards; }
+  @keyframes palavra {
+    0%   { opacity: 0; transform: translateY(12px) scale(.7); color: var(--accent-dark); }
+    70%  { opacity: 1; transform: translateY(-3px) scale(1.12); color: var(--accent-dark); }
+    100% { opacity: 1; transform: none; color: inherit; }
+  }
+  .caixa-frase.chama { animation: chama 1.1s ease-out; }
+  @keyframes chama {
+    0%   { transform: scale(.94); box-shadow: 0 0 0 0 rgba(127,168,143,.75), 0 3px 0 var(--line); border-color: var(--accent); }
+    40%  { transform: scale(1.04); }
+    100% { transform: none; box-shadow: 0 0 0 24px rgba(127,168,143,0), 0 3px 0 var(--line); border-color: var(--line); }
+  }
+  .slot.travado { cursor: default; }
+  .grupo { position: relative; }
+
+  .mao { position: fixed; left: 0; top: 0; font-size: 64px; line-height: 1; pointer-events: none; z-index: 15; opacity: 0;
+         transform: translate(-17%, -8%); filter: drop-shadow(0 4px 4px rgba(0,0,0,.3)); }
+  .mao.toca { animation: toca .35s; }
+  @keyframes toca { 50% { transform: translate(-17%, -8%) scale(.8); } }
+  .onda { position: fixed; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%;
+          border: 4px solid var(--accent); pointer-events: none; z-index: 14; animation: onda .6s ease-out forwards; }
+  .voando { position: fixed; z-index: 13; object-fit: contain; background: var(--card); border-radius: 14px; pointer-events: none;
+            box-shadow: 0 14px 26px rgba(0,0,0,.28); transform: scale(1.07); transition: left .95s ease-in-out, top .95s ease-in-out; }
+  @keyframes onda { from { transform: scale(.3); opacity: .9; } to { transform: scale(4); opacity: 0; } }
+  .seta { position: fixed; pointer-events: none; z-index: 14; color: var(--accent-dark); transform: translate(-50%, -50%); animation: sobe .7s ease-in-out infinite alternate; }
+  @keyframes sobe { from { margin-top: 10px; } to { margin-top: -10px; } }
+
+  @keyframes pula { 0% { transform: translateY(18px) scale(.8); opacity: 0; } 60% { transform: translateY(-8px) scale(1.04); opacity: 1; } 100% { transform: none; opacity: 1; } }
+  .cel.pula { animation: pula .6s both; }
+  @keyframes brilha { 0%, 28%, 100% { box-shadow: 0 2px 0 var(--line); transform: none; }
+                      14% { box-shadow: 0 0 0 5px rgba(127,168,143,.7), 0 8px 16px rgba(127,168,143,.35); transform: translateY(-5px); } }
+  .cel.brilha { animation: brilha 3.8s ease-in-out infinite both; }
+  @keyframes pisca { 0%, 100% { box-shadow: none; } 50% { box-shadow: 0 0 0 7px rgba(127,168,143,.6); } }
+  .grupo.pisca { animation: pisca 1.6s ease-in-out infinite; }
+  @keyframes acende { 0%, 8%, 40%, 100% { background: rgba(255,253,249,.6); } 18%, 30% { background: rgba(127,168,143,.4); } }
+  .slot.acende { animation: acende 3s ease-in-out infinite both; }
+  .slot.cont::after { content: attr(data-n); font-size: calc(var(--s) * .45); font-weight: 700; color: var(--accent-dark);
+                      opacity: 0; animation: cont 3s ease infinite both; animation-delay: inherit; }
+  @keyframes cont { 0%, 8%, 40%, 100% { opacity: 0; transform: scale(.5); } 18%, 30% { opacity: 1; transform: scale(1); } }
+  @keyframes convida { 50% { transform: translateY(-4px) scale(1.05); } }
+  .cel.convida { animation: convida 1.5s ease-in-out infinite; }
+  @keyframes alvo { 50% { background: rgba(127,168,143,.3); } }
+  .slot.alvo { animation: alvo 1.2s ease-in-out infinite; }
+  @keyframes popimg { 0% { transform: scale(.6); } 60% { transform: scale(1.08); } 100% { transform: none; } }
+  .slot img.pop { animation: popimg .45s; }
+
+  .selo { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; justify-content: center;
+          background: var(--card); border: 2px solid var(--line); border-radius: 999px; padding: 3px 12px; min-width: 52px; height: 30px; }
+  .selo i { display: block; border-radius: 50%; background: var(--ink); }
+  .selo.grande i { width: 20px; height: 20px; }
+  .selo.pequeno i { width: 8px; height: 8px; }
+  .selo.novo { animation: popselo .5s; }
+  @keyframes popselo { 0% { transform: translateX(-50%) scale(.3); opacity: 0; } 70% { transform: translateX(-50%) scale(1.15); opacity: 1; } 100% { transform: translateX(-50%); } }
+  #btn-repetir { display: none; }
+  .rodape { gap: 12px; }
+  .rodape { display: flex; justify-content: flex-end; align-items: center; height: 58px; flex: none; }
+
+  /* retrato / telas estreitas */
+  @media (max-aspect-ratio: 1/1) {
+    .quadro { flex-direction: column; gap: 12px; }
+    .bandeja { grid-template-columns: repeat(4, var(--s)); }
+    .palco { gap: 14px; }
+  }
+
+  /* ---------- modais ---------- */
+  .modal { position: fixed; inset: 0; background: rgba(74,64,57,.45); display: none; align-items: center; justify-content: center; z-index: 20; padding: 20px; }
+  .modal.aberto { display: flex; }
+  .caixa { background: var(--card); border-radius: 22px; padding: 26px 28px; text-align: center; max-width: 340px; box-shadow: 0 12px 40px rgba(0,0,0,.2); }
+  .caixa p { margin: 0 0 18px; font-size: 1.05rem; }
+  .caixa .acoes { display: flex; gap: 12px; justify-content: center; }
+
+  #tela-fim h1, #tela-invalido h1 { font-size: 1.6rem; }
+  #msg-salvo { min-height: 1.2em; font-size: .85rem; }
+</style>
+</head>
+<body>
+
+<!-- Tela inicial -->
+<section class="tela centro" id="tela-inicio">
+  <h1>Agrupamento</h1>
+  <button class="btn" id="btn-iniciar" disabled>Iniciar</button>
+  <p id="msg-inicio">Verificando link…</p>
+</section>
+
+<!-- Teste -->
+<section class="tela" id="tela-teste">
+  <div class="topo">
+    <button class="btn alerta" id="btn-finalizar">Finalizar teste</button>
+    <span class="rodada" id="lbl-rodada"></span>
+    <span class="tempo" id="lbl-tempo">6:00</span>
+  </div>
+
+  <div class="palco">
+    <div class="legenda" id="legenda"></div>
+    <div class="quadro" id="quadro">
+      <div class="grupo" id="grupo1"></div>
+      <div class="grupo" id="grupo2"></div>
+    </div>
+    <div class="bandeja" id="bandeja"></div>
+  </div>
+
+  <div class="rodape">
+    <button class="btn suave" id="btn-repetir">Repetir</button>
+    <button class="btn" id="btn-proximo" disabled><span class="fill"></span><span class="rot">Próximo</span></button>
+  </div>
+</section>
+
+<!-- Fim -->
+<section class="tela centro" id="tela-fim">
+  <h1>Teste finalizado</h1>
+  <p>Obrigada!</p>
+  <p id="msg-salvo"></p>
+</section>
+
+<!-- Link inválido -->
+<section class="tela centro" id="tela-invalido">
+  <h1>Link indisponível</h1>
+  <p id="msg-invalido">Gere um novo link pelo hub.</p>
+</section>
+
+<!-- Confirmação de finalizar -->
+<div class="modal" id="modal-finalizar">
+  <div class="caixa">
+    <p>Finalizar o teste agora?</p>
+    <div class="acoes">
+      <button class="btn suave" id="fin-nao">Voltar</button>
+      <button class="btn alerta" id="fin-sim">Finalizar</button>
+    </div>
+  </div>
+</div>
+
+<div class="mao" id="mao"><svg width="52" height="52" viewBox="0 0 24 24"><path d="M4 2 L4 19 L8.5 15 L11.5 22 L14.5 20.7 L11.6 14 L18 14 Z" fill="#5f8a70" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/></svg></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* =====================  CONFIGURAÇÃO  ===================== */
+  const SITE_ID        = 'agrup';        // valor gravado em sessoes.site (precisa estar no CHECK da tabela)
+  const TEMPO_TOTAL_S  = 360;            // tempo total do teste
+  const MOSTRAR_TEMPO  = true;           // false = esconde o cronômetro da tela
+  // Ordem em que as cartas aparecem na bandeja (números das cartas: 1..8).
+  // Pode ser alterada no futuro (ou vir do hub).
+  const ORDEM_BANDEJA  = [1, 2, 3, 4, 5, 6, 7, 8];
+  const IMG = n => 'imagens/carta_' + n + '.png';
+
+  const SUPABASE_URL = 'https://bjzmlvsskhfrkvblvsjj.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_YEHAM35S4jsY_dKoN5mwzg_YOVoVWJR';
+  const EDGE = SUPABASE_URL + '/functions/v1';
+
+  const params = new URLSearchParams(location.search);
+  const TOKEN  = params.get('t');
+  const DEMO   = params.get('demo') === '1';   // modo de ensaio: não valida nem grava nada
+
+  /* =====================  TUTORIAL: INSTRUÇÕES  ===================== */
+  const ESPERA_CONTINUAR_S = 10;   // o botão "Continuar" só libera depois desse tempo em cada instrução
+  const GRAVAR_TUTORIAL = true;    // grava o resultado do tutorial no hub como "Tutorial"
+  // demonstração: [carta, posição]  (posições 0-3 = grupo 1, 4-7 = grupo 2)
+  const EXEMPLO = [[5, 0], [4, 1], [6, 4], [7, 5]];   // urso, elefante | peixes, gato
+  const PASSOS = [
+    { txt: 'Aqui estão alguns cartões com figuras.', fx: () => fxPulam() },
+    { txt: 'Olhe cuidadosamente para os cartões para ver em que eles são iguais e em que eles são diferentes.', fx: () => fxBrilham() },
+    { txt: 'Você pode colocar os cartões juntos para fazer dois grupos.', fx: () => fxGrupos() },
+    { txt: 'Cada grupo deve ter quatro cartões.', fx: () => fxContagem() },
+    { txt: 'Por exemplo: nós podemos agrupar os cartões pelo tamanho do animal.', fx: null },
+    { txt: 'Veja: vamos colocar dois cartões com animais grandes (por exemplo, urso e elefante) em um grupo', fx: id => demoPar(0, id) },
+    { txt: 'e dois cartões com animais pequenos (por exemplo, peixe e gato) em outro grupo.', fx: id => demoPar(1, id) },
+    { txt: 'Agora veja se você consegue agrupar o resto dos cartões pelo tamanho do animal.', final: true }
+  ];
+
+  /* =====================  ESTADO  ===================== */
+  let slots = new Array(8).fill(null);   // 0-3 = grupo 1, 4-7 = grupo 2 (valor = número da carta)
+  let selecionada = null;                // número da carta selecionada
+  let rodada = 1;
+  let iniciadoEm = 0;                    // ms (início do teste, não conta o tutorial)
+  let rodadaIniciadaEm = 0;              // ms
+  let tutIniciadoEm = 0;                 // ms
+  let ativo = false;                     // sessão em andamento (tutorial ou teste)
+  let timerId = null;
+  let fase = 'tutorial';                 // 'tutorial' | 'teste'
+  let passo = -1;                        // instrução atual do tutorial (índice em PASSOS)
+  let liberado = false;                  // botão Continuar liberado (passaram os 10 s)
+  let lockToken = 0;                     // invalida o temporizador do botão ao trocar de instrução
+  let animando = false;
+  let convidar = false;                  // cartas "chamam" a criança no passo 3 até o primeiro toque
+  let ultimoIdx = -1;                    // última posição preenchida (animação de "pop")
+  const selos = { grupo1: false, grupo2: false };
+  const selosNovos = new Set();
+  const travadas = new Set();            // posições bloqueadas (cartas do exemplo)
+  let execId = 0;                        // cancela animações em andamento
+  let emVoo = null;                      // carta sendo carregada pela seta na demonstração
+
+  const $ = id => document.getElementById(id);
+  const telas = ['tela-inicio', 'tela-teste', 'tela-fim', 'tela-invalido'];
+  function mostrar(id) { telas.forEach(t => $(t).classList.toggle('ativa', t === id)); }
+  const pausa = ms => new Promise(r => setTimeout(r, ms));
+  async function esperar(ms, id) { await pausa(ms); return id === execId && ativo; }
+
+  function podeInteragir() {
+    return ativo && (fase === 'teste' || (fase === 'tutorial' && passo >= 0 && PASSOS[passo].final));
+  }
+
+  /* =====================  TAMANHO DAS CARTAS  ===================== */
+  function ajustarTamanho() {
+    const w = window.innerWidth;
+    const extra = fase === 'tutorial' && ativo ? 160 : 0;    // espaço da legenda do tutorial
+    const h = window.innerHeight - extra;
+    const retrato = window.innerWidth / window.innerHeight <= 1;
+    let s;
+    if (!retrato) {
+      s = Math.min((w - 28 - 28 - 2 * 36 - 56) / 8, (h - 46 - 58 - 20 - 18 - 20 - 30) / 2);
+    } else {
+      s = Math.min((w - 28 - 40) / 4, (h - 46 - 58 - 20 - 12 - 14 - 20 - 20 - 70) / 4);
+    }
+    document.documentElement.style.setProperty('--s', Math.max(48, Math.floor(s)) + 'px');
+  }
+  window.addEventListener('resize', ajustarTamanho);
+  window.addEventListener('orientationchange', ajustarTamanho);
+
+  /* =====================  RENDER  ===================== */
+  function criarImg(n) {
+    const i = document.createElement('img');
+    i.src = IMG(n); i.alt = ''; i.draggable = false;
+    return i;
+  }
+
+  function render() {
+    const bandeja = $('bandeja');
+    bandeja.innerHTML = '';
+    const chamar_ = fase === 'tutorial' && passo >= 0 && PASSOS[passo].final && convidar && !selecionada;
+    ORDEM_BANDEJA.forEach((n, k) => {
+      const b = document.createElement('button');
+      const colocada = slots.includes(n) || n === emVoo;
+      b.className = 'cel' + (colocada ? ' vazia' : '') + (selecionada === n ? ' sel' : '') + (chamar_ && !colocada ? ' convida' : '');
+      if (chamar_ && !colocada) b.style.animationDelay = (k * 140) + 'ms';
+      b.setAttribute('aria-label', 'Imagem');
+      if (!colocada) b.appendChild(criarImg(n));
+      b.addEventListener('click', () => clicarCarta(n, colocada));
+      bandeja.appendChild(b);
+    });
+
+    [['grupo1', 0, 'grande'], ['grupo2', 4, 'pequeno']].forEach(([id, base, tipo]) => {
+      const g = $(id); g.innerHTML = '';
+      for (let k = 0; k < 4; k++) {
+        const idx = base + k, n = slots[idx];
+        const b = document.createElement('button');
+        b.className = 'slot' + (n ? ' cheio' : '') + (travadas.has(idx) ? ' travado' : '') +
+                      (selecionada && !n && podeInteragir() ? ' alvo' : '');
+        b.setAttribute('aria-label', 'Espaço');
+        if (n) { const im = criarImg(n); if (idx === ultimoIdx) im.classList.add('pop'); b.appendChild(im); }
+        b.addEventListener('click', () => clicarSlot(idx));
+        g.appendChild(b);
+      }
+      if (selos[id]) {
+        const d = document.createElement('div');
+        d.className = 'selo ' + tipo + (selosNovos.has(id) ? ' novo' : '');
+        d.innerHTML = '<i></i>';
+        g.appendChild(d);
+      }
+    });
+    ultimoIdx = -1; selosNovos.clear();
+
+    atualizarBotao();
+    $('lbl-rodada').textContent = fase === 'tutorial' ? 'Tutorial' : 'Rodada ' + rodada;
+  }
+
+  /* ---- botão principal ---- */
+  function atualizarBotao() {
+    const btn = $('btn-proximo'), rot = btn.querySelector('.rot');
+    const P = fase === 'tutorial' && passo >= 0 ? PASSOS[passo] : null;
+    if (P && P.final)  { rot.textContent = 'Começar';   btn.disabled = !slots.every(Boolean) || !ativo; }
+    else if (P)        { rot.textContent = 'Continuar'; btn.disabled = !liberado || !ativo; }
+    else               { rot.textContent = 'Próximo';   btn.disabled = !slots.every(Boolean) || !ativo; }
+    $('btn-repetir').style.display = (P && !P.final && P.fx && ativo && !animando) ? 'inline-block' : 'none';
+  }
+
+  /* ---- legenda do tutorial: uma instrução por vez, com efeito nas palavras ---- */
+  function criarLegenda() {
+    const l = $('legenda');
+    l.innerHTML = '';
+    const caixa = document.createElement('div'); caixa.className = 'caixa-frase'; caixa.id = 'caixa-frase';
+    const pontos = document.createElement('div'); pontos.className = 'pontos';
+    PASSOS.forEach(() => pontos.appendChild(document.createElement('i')));
+    l.appendChild(caixa); l.appendChild(pontos);
+    l.style.display = 'flex';
+  }
+  function mostrarTexto(i) {
+    const c = $('caixa-frase'); if (!c) return;
+    c.innerHTML = '';
+    const t = document.createElement('span'); t.className = 'texto';
+    PASSOS[i].txt.split(' ').forEach((pal, k, arr) => {
+      const sp = document.createElement('span'); sp.className = 'w'; sp.textContent = pal;
+      sp.style.animationDelay = (150 + k * 75) + 'ms';
+      t.appendChild(sp);
+      if (k < arr.length - 1) t.appendChild(document.createTextNode(' '));
+    });
+    c.appendChild(t);
+    c.classList.remove('chama'); c.style.animation = 'none'; void c.offsetWidth; c.style.animation = ''; c.classList.add('chama');
+    [...document.querySelectorAll('#legenda .pontos i')].forEach((p, k) => {
+      p.classList.toggle('atual', k === i); p.classList.toggle('lida', k < i);
+    });
+  }
+  function legendaOff() { const l = $('legenda'); l.style.display = 'none'; l.innerHTML = ''; }
+
+  /* ---- mãozinha, ondas e setas ---- */
+  const mao = $('mao');
+  function centro(el) { const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }
+  function maoMostrar() {
+    mao.style.transition = 'none';
+    mao.style.left = (window.innerWidth - 100) + 'px';
+    mao.style.top = (window.innerHeight + 40) + 'px';
+    mao.style.opacity = 1;
+    void mao.offsetWidth;
+  }
+  function maoPara(x, y, ms) {
+    mao.style.transition = 'left ' + ms + 'ms ease-in-out, top ' + ms + 'ms ease-in-out, opacity .3s';
+    mao.style.left = x + 'px'; mao.style.top = y + 'px';
+  }
+  function maoEsconder() {
+    mao.style.transition = 'opacity .4s, top .8s ease-in';
+    mao.style.opacity = 0;
+    mao.style.top = (window.innerHeight + 40) + 'px';
+  }
+  function tocar(x, y) {
+    mao.classList.remove('toca'); void mao.offsetWidth; mao.classList.add('toca');
+    const o = document.createElement('div'); o.className = 'onda'; o.style.left = x + 'px'; o.style.top = y + 'px';
+    document.body.appendChild(o); setTimeout(() => o.remove(), 700);
+  }
+  function setas() {
+    document.querySelectorAll('.grupo').forEach(g => {
+      const r = g.getBoundingClientRect();
+      const a = document.createElement('div'); a.className = 'seta';
+      a.style.left = (r.left + r.width / 2) + 'px'; a.style.top = (r.bottom + 12) + 'px';
+      a.innerHTML = '<svg width="40" height="48" viewBox="0 0 48 56"><path d="M24 4 L44 28 H31 V52 H17 V28 H4 Z" fill="currentColor"/></svg>';
+      document.body.appendChild(a);
+    });
+  }
+  function limparEfeitos() {
+    document.querySelectorAll('.seta, .onda, .voando').forEach(e => e.remove());
+    emVoo = null;
+    maoEsconder();
+  }
+
+  /* =====================  INTERAÇÃO  ===================== */
+  function clicarCarta(n, colocada) {
+    if (!podeInteragir() || colocada) return;
+    convidar = false;
+    selecionada = (selecionada === n) ? null : n;
+    render();
+  }
+
+  function clicarSlot(idx) {
+    if (!podeInteragir() || travadas.has(idx)) return;
+    convidar = false;
+    const atual = slots[idx];
+    if (selecionada) {
+      slots[idx] = selecionada;   // se havia outra carta aqui, ela volta sozinha para a bandeja
+      ultimoIdx = idx;
+      selecionada = null;
+    } else if (atual) {
+      slots[idx] = null;          // sem carta selecionada: clicar numa carta colocada devolve à bandeja
+    }
+    render();
+  }
+
+  /* =====================  ENVIO AO HUB  ===================== */
+  let fila = Promise.resolve();
+  let falhas = 0;
+
+  async function chamar(fn, corpo) {
+    const r = await fetch(EDGE + '/' + fn, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
+      body: JSON.stringify(corpo)
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || j.ok === false || j.error) throw new Error(j.motivo || j.error || ('HTTP ' + r.status));
+    return j;
+  }
+
+  function enviar(fn, corpo) {
+    if (DEMO) { console.log('[demo]', fn, corpo); return Promise.resolve(); }
+    fila = fila.then(async () => {
+      for (let t = 0; t < 4; t++) {
+        try { await chamar(fn, corpo); return; }
+        catch (e) { await new Promise(r => setTimeout(r, 600 * (t + 1))); }
+      }
+      falhas++;
+    });
+    return fila;
+  }
+
+  function arred(ms) { return Math.round(ms / 100) / 10; }   // segundos com 1 casa
+
+  function registrarRodada(completa) {
+    const agora = Date.now();
+    const dados = {
+      rodada,
+      completa,
+      grupo1: slots.slice(0, 4),   // número da carta em cada posição (null = vazio)
+      grupo2: slots.slice(4, 8),
+      tempo_rodada_s: arred(agora - rodadaIniciadaEm),
+      tempo_total_s: arred(agora - iniciadoEm)
+    };
+    enviar('registrar-print', {
+      token: TOKEN,
+      etapa: 'Rodada ' + rodada + (completa ? '' : ' (incompleta)'),
+      dados_cubo: dados
+    });
+  }
+
+  function registrarTutorial() {
+    if (!GRAVAR_TUTORIAL) return;
+    enviar('registrar-print', {
+      token: TOKEN,
+      etapa: 'Tutorial',
+      dados_cubo: {
+        tutorial: true,
+        grupo1: slots.slice(0, 4),
+        grupo2: slots.slice(4, 8),
+        cartas_exemplo: EXEMPLO.map(e => e[0]),    // cartas colocadas pelo sistema (demonstração)
+        tempo_s: arred(Date.now() - tutIniciadoEm)
+      }
+    });
+  }
+
+  /* =====================  TUTORIAL  ===================== */
+  function iniciarTutorial() {
+    fase = 'tutorial'; passo = -1; ativo = true; animando = false; convidar = false; liberado = false;
+    slots = new Array(8).fill(null); selecionada = null; travadas.clear();
+    selos.grupo1 = selos.grupo2 = false;
+    tutIniciadoEm = Date.now();
+    $('lbl-tempo').style.visibility = 'hidden';
+    mostrar('tela-teste');
+    criarLegenda();
+    ajustarTamanho();
+    irPasso(0);
+  }
+
+  // efeitos das instruções (ficam em loop até o aplicador continuar)
+  const celulas = () => [...document.querySelectorAll('#bandeja .cel')];
+  function fxPulam()   { celulas().forEach((c, k) => { c.style.animationDelay = (k * 120) + 'ms'; c.classList.add('pula'); }); }
+  function fxBrilham() { celulas().forEach((c, k) => { c.style.animationDelay = (k * 450) + 'ms'; c.classList.add('brilha'); }); }
+  function fxGrupos()  { document.querySelectorAll('.grupo').forEach(g => g.classList.add('pisca')); setas(); }
+  function fxContagem() {
+    document.querySelectorAll('.grupo').forEach(g => [...g.querySelectorAll('.slot')].forEach((sl, k) => {
+      sl.dataset.n = k + 1; sl.style.animationDelay = (k * 700) + 'ms'; sl.classList.add('acende', 'cont');
+    }));
+  }
+
+  // demonstração de um par de cartas: a seta pega o cartão, leva até o espaço e solta
+  async function demoPar(par, id) {
+    animando = true;
+    const lista = EXEMPLO.slice(par * 2, par * 2 + 2);
+    const g = par === 0 ? 'grupo1' : 'grupo2';
+    lista.forEach(([c, idx]) => { slots[idx] = null; travadas.delete(idx); });   // (permite repetir)
+    selos[g] = false; render(); atualizarBotao();
+    if (!(await esperar(500, id))) return;
+    maoMostrar();
+    for (const [carta, idx] of lista) {
+      const cel = document.querySelectorAll('#bandeja .cel')[ORDEM_BANDEJA.indexOf(carta)];
+      const rc = cel.getBoundingClientRect();
+      let c = centro(cel);
+      maoPara(c.x, c.y, 1000);                          // a seta vai até o cartão
+      if (!(await esperar(1100, id))) return;
+      tocar(c.x, c.y);                                  // pega
+      const clone = criarImg(carta); clone.className = 'voando';
+      clone.style.left = rc.left + 'px'; clone.style.top = rc.top + 'px';
+      clone.style.width = rc.width + 'px'; clone.style.height = rc.height + 'px';
+      document.body.appendChild(clone);
+      emVoo = carta; render();                          // o lugar do cartão na bandeja fica vazio
+      if (!(await esperar(350, id))) return;
+      const sl = document.querySelectorAll('.slot')[idx];
+      const rs = sl.getBoundingClientRect();
+      c = centro(sl);
+      maoPara(c.x, c.y, 950);                           // a seta leva o cartão até o espaço
+      clone.style.left = rs.left + 'px'; clone.style.top = rs.top + 'px';
+      if (!(await esperar(1050, id))) return;
+      tocar(c.x, c.y);                                  // solta
+      clone.remove();
+      emVoo = null; slots[idx] = carta; ultimoIdx = idx; travadas.add(idx); render();
+      if (!(await esperar(700, id))) return;
+    }
+    selos[g] = true; selosNovos.add(g); render();       // selo de tamanho (grande / pequeno)
+    if (!(await esperar(900, id))) return;
+    maoEsconder();
+    animando = false; atualizarBotao();
+  }
+
+  // vai para uma instrução: texto novo (com efeito), animação e trava de 10 s no botão Continuar
+  function irPasso(i) {
+    const id = ++execId;
+    limparEfeitos();
+    passo = i; animando = false; selecionada = null; emVoo = null; convidar = false;
+    if (i === 0) { slots = new Array(8).fill(null); travadas.clear(); selos.grupo1 = selos.grupo2 = false; }
+    const P = PASSOS[i];
+    mostrarTexto(i);
+    render();                                           // limpa efeitos visuais da instrução anterior
+
+    const btn = $('btn-proximo');
+    const tok = ++lockToken;
+    liberado = false;
+    btn.classList.remove('espera', 'libera');
+    if (P.final) {
+      convidar = true; render();
+    } else {
+      btn.style.setProperty('--espera', ESPERA_CONTINUAR_S + 's');
+      void btn.offsetWidth; btn.classList.add('espera');
+      setTimeout(() => {
+        if (tok !== lockToken || !ativo) return;
+        liberado = true;
+        btn.classList.remove('espera'); btn.classList.add('libera');
+        atualizarBotao();                               // (não redesenha as cartas: os efeitos continuam)
+      }, ESPERA_CONTINUAR_S * 1000);
+    }
+    atualizarBotao();
+    if (P.fx) setTimeout(() => { if (id === execId && ativo) P.fx(id); }, 350);
+  }
+
+  /* =====================  FLUXO DO TESTE  ===================== */
+  function acaoBotao() {
+    if (!ativo) return;
+    $('btn-proximo').classList.remove('libera');
+    if (fase === 'tutorial') {
+      const P = PASSOS[passo];
+      if (P.final) { if (slots.every(Boolean)) { registrarTutorial(); iniciarTeste(); } }
+      else if (liberado) irPasso(passo + 1);
+    } else {
+      proximo();
+    }
+  }
+
+  function repetir() {
+    if (!ativo || fase !== 'tutorial' || animando || passo < 0) return;
+    const P = PASSOS[passo];
+    if (!P.fx) return;
+    const id = ++execId;
+    limparEfeitos(); emVoo = null; selecionada = null;
+    mostrarTexto(passo);
+    if (!P.final) { render(); setTimeout(() => { if (id === execId && ativo) P.fx(id); }, 350); }
+  }
+
+  function iniciarTeste() {
+    ++execId; ++lockToken; limparEfeitos();
+    fase = 'teste'; passo = -1;
+    travadas.clear(); selos.grupo1 = selos.grupo2 = false; convidar = false;
+    slots = new Array(8).fill(null);
+    selecionada = null; rodada = 1;
+    iniciadoEm = rodadaIniciadaEm = Date.now();
+    legendaOff();
+    $('lbl-tempo').style.visibility = MOSTRAR_TEMPO ? 'visible' : 'hidden';
+    ajustarTamanho();
+    render();
+    atualizarTempo();
+    timerId = setInterval(atualizarTempo, 250);
+  }
+
+  function proximo() {
+    if (!ativo || !slots.every(Boolean)) return;
+    registrarRodada(true);
+    rodada++;
+    slots = new Array(8).fill(null);
+    selecionada = null;
+    rodadaIniciadaEm = Date.now();
+    render();
+  }
+
+  async function encerrar(motivo) {
+    if (!ativo) return;
+    ativo = false;
+    ++execId; ++lockToken; limparEfeitos();
+    clearInterval(timerId);
+    $('modal-finalizar').classList.remove('aberto');
+
+    const noTutorial = fase === 'tutorial';
+    const parcial = !noTutorial && slots.some(Boolean);
+    const rodadasCompletas = noTutorial ? 0 : rodada - 1;
+    if (parcial) registrarRodada(false);
+
+    mostrar('tela-fim');
+    $('msg-salvo').textContent = DEMO ? 'Modo de ensaio: nada foi gravado.' : '';
+
+    await enviar('concluir-sessao', {
+      token: TOKEN,
+      dados: {
+        motivo: noTutorial ? 'finalizado_no_tutorial' : motivo,   // 'finalizado', 'tempo_esgotado' ou 'finalizado_no_tutorial'
+        rodadas_completas: rodadasCompletas,
+        rodada_incompleta: parcial,
+        tempo_total_s: noTutorial ? 0 : arred(Date.now() - iniciadoEm)
+      }
+    });
+    if (falhas > 0 && !DEMO) $('msg-salvo').textContent = 'Não foi possível salvar todos os dados. Avise o aplicador.';
+  }
+
+  function atualizarTempo() {
+    if (fase !== 'teste') return;
+    const restante = Math.max(0, TEMPO_TOTAL_S - (Date.now() - iniciadoEm) / 1000);
+    const m = Math.floor(Math.ceil(restante) / 60), s = Math.ceil(restante) % 60;
+    const el = $('lbl-tempo');
+    el.textContent = m + ':' + String(s).padStart(2, '0');
+    el.classList.toggle('fim', restante <= 30);
+    if (restante <= 0) encerrar('tempo_esgotado');
+  }
+
+  /* =====================  EVENTOS  ===================== */
+  $('btn-iniciar').addEventListener('click', iniciarTutorial);
+  $('btn-proximo').addEventListener('click', acaoBotao);
+  $('btn-repetir').addEventListener('click', repetir);
+  $('btn-finalizar').addEventListener('click', () => $('modal-finalizar').classList.add('aberto'));
+  $('fin-nao').addEventListener('click', () => $('modal-finalizar').classList.remove('aberto'));
+  $('fin-sim').addEventListener('click', () => encerrar('finalizado'));
+
+  window.addEventListener('beforeunload', e => { if (ativo) { e.preventDefault(); e.returnValue = ''; } });
+  document.addEventListener('contextmenu', e => e.preventDefault());
+
+  /* =====================  VALIDAÇÃO DO LINK  ===================== */
+  async function validar() {
+    if (DEMO) {
+      $('msg-inicio').textContent = 'Modo de ensaio';
+      $('btn-iniciar').disabled = false;
+      return;
+    }
+    if (!TOKEN) {
+      $('msg-invalido').textContent = 'Este teste só abre por um link gerado no hub.';
+      mostrar('tela-invalido');
+      return;
+    }
+    try {
+      await chamar('validar-token', { token: TOKEN, site: SITE_ID });
+      $('msg-inicio').textContent = '';
+      $('btn-iniciar').disabled = false;
+    } catch (e) {
+      $('msg-invalido').textContent = 'Este link não é mais válido. Gere um novo pelo hub.';
+      mostrar('tela-invalido');
+    }
+  }
+
+  ajustarTamanho();
+  mostrar('tela-inicio');
+  validar();
+})();
+</script>
+</body>
+</html>
