@@ -122,6 +122,10 @@
     40%  { transform: scale(1.04); }
     100% { transform: none; box-shadow: 0 0 0 24px rgba(127,168,143,0), 0 3px 0 var(--line); border-color: var(--line); }
   }
+  .passo-num { position: fixed; z-index: 14; width: 42px; height: 42px; border-radius: 50%; background: var(--accent-dark); color: #fff;
+               font-weight: 700; font-size: 1.35rem; display: flex; align-items: center; justify-content: center; border: 3px solid #fff;
+               box-shadow: 0 3px 8px rgba(0,0,0,.28); pointer-events: none; animation: popnum .5s ease-out both; }
+  @keyframes popnum { 0% { transform: translate(-30%, -30%) scale(.2); opacity: 0; } 70% { transform: translate(-30%, -30%) scale(1.2); opacity: 1; } 100% { transform: translate(-30%, -30%) scale(1); opacity: 1; } }
   .slot.travado { cursor: default; }
   .grupo { position: relative; }
 
@@ -139,8 +143,8 @@
 
   @keyframes pula { 0% { transform: translateY(18px) scale(.8); opacity: 0; } 60% { transform: translateY(-8px) scale(1.04); opacity: 1; } 100% { transform: none; opacity: 1; } }
   .cel.pula { animation: pula .6s both; }
-  @keyframes embaralha { 0% { transform: translateY(-14px) rotate(-6deg) scale(.9); opacity: 0; } 55% { transform: translateY(4px) rotate(3deg) scale(1.03); opacity: 1; } 100% { transform: none; opacity: 1; } }
-  .cel.embaralha { animation: embaralha .5s ease-out both; }
+  @keyframes chegou { 0% { transform: scale(.85); } 60% { transform: scale(1.08); } 100% { transform: none; } }
+  .cel.chegou { animation: chegou .4s ease-out; }
   @keyframes brilha { 0%, 28%, 100% { box-shadow: 0 2px 0 var(--line); transform: none; }
                       14% { box-shadow: 0 0 0 5px rgba(127,168,143,.7), 0 8px 16px rgba(127,168,143,.35); transform: translateY(-5px); } }
   .cel.brilha { animation: brilha 3.8s ease-in-out 2 both; }
@@ -252,6 +256,7 @@
   /* =====================  CONFIGURAÇÃO  ===================== */
   const SITE_ID        = 'agrup';        // valor gravado em sessoes.site (precisa estar no CHECK da tabela)
   const TEMPO_TOTAL_S  = 360;            // tempo total do teste
+  const LIMITE_SEM_FINALIZAR_S = 120;    // encerra o teste se passar esse tempo sem finalizar um grupo (contado desde o início do teste ou desde o último clique em Próximo)
   const MOSTRAR_TEMPO  = true;           // false = esconde o cronômetro da tela
   // Ordem em que as cartas aparecem na bandeja (números das cartas: 1..8).
   // Pode ser alterada no futuro (ou vir do hub).
@@ -281,6 +286,7 @@
     { txt: 'Por exemplo: nós podemos agrupar os cartões pelo tamanho do animal.', fx: null },
     { txt: 'Veja: vamos colocar dois cartões com animais grandes (por exemplo, urso e elefante) em um grupo', fx: id => demoPar(0, id) },
     { txt: 'e dois cartões com animais pequenos (por exemplo, peixe e gato) em outro grupo.', fx: id => demoPar(1, id) },
+    { txt: 'Para mover um cartão, clique nele e depois clique em um espaço vazio.', fx: id => fxToque(id) },
     { txt: 'Agora veja se você consegue agrupar o resto dos cartões pelo tamanho do animal.', final: true }
   ];
 
@@ -303,8 +309,11 @@
   const selos = { grupo1: false, grupo2: false };
   const selosNovos = new Set();
   const travadas = new Set();            // posições bloqueadas (cartas do exemplo)
-  let ordem = ORDEM_BANDEJA.slice();     // ordem atual das cartas na bandeja (embaralha a cada rodada no teste)
-  let embaralhando = false;              // anima as cartas quando acabaram de ser embaralhadas
+  const voltando = new Set();            // cartas voando de volta para a bandeja (fim de um grupo)
+  let voltandoAnim = false;              // true enquanto as cartas voltam (bloqueia cliques)
+  let chegando = false;                  // cartas acabaram de chegar na bandeja (animação)
+  let ultimaFinalizacaoEm = 0;           // ms: último momento em que um grupo foi finalizado (clique em Próximo)
+  const ordem = ORDEM_BANDEJA;           // as cartas sempre voltam para a bandeja na mesma ordem (1 a 8)
   let execId = 0;                        // cancela animações em andamento
   let emVoo = null;                      // carta sendo carregada pela seta na demonstração
 
@@ -315,7 +324,7 @@
   async function esperar(ms, id) { await pausa(ms); return id === execId && ativo; }
 
   function podeInteragir() {
-    return ativo && (fase === 'teste' || (fase === 'tutorial' && passo >= 0 && PASSOS[passo].final));
+    return ativo && !voltandoAnim && (fase === 'teste' || (fase === 'tutorial' && passo >= 0 && PASSOS[passo].final));
   }
 
   /* =====================  TAMANHO DAS CARTAS  ===================== */
@@ -348,11 +357,11 @@
     const chamar_ = fase === 'tutorial' && passo >= 0 && PASSOS[passo].final && convidar && !selecionada;
     ordem.forEach((n, k) => {
       const b = document.createElement('button');
-      const colocada = slots.includes(n) || n === emVoo;
+      const colocada = slots.includes(n) || n === emVoo || voltando.has(n);
       b.className = 'cel' + (colocada ? ' vazia' : '') + (selecionada === n ? ' sel' : '') + (chamar_ && !colocada ? ' convida' : '');
       if (chamar_ && !colocada) b.style.animationDelay = (k * 140) + 'ms';
-      if (embaralhando && !colocada) { b.classList.add('embaralha'); b.style.animationDelay = (k * 45) + 'ms'; }
       b.setAttribute('aria-label', 'Imagem');
+      if (chegando && !colocada) b.classList.add('chegou');
       if (!colocada) b.appendChild(criarImg(n));
       b.addEventListener('click', () => clicarCarta(n, colocada));
       bandeja.appendChild(b);
@@ -377,7 +386,7 @@
         g.appendChild(d);
       }
     });
-    ultimoIdx = -1; selosNovos.clear(); embaralhando = false;
+    ultimoIdx = -1; selosNovos.clear(); chegando = false;
 
     atualizarBotao();
     $('lbl-rodada').textContent = fase === 'tutorial' ? 'Tutorial' : 'Rodada ' + rodada;
@@ -389,7 +398,7 @@
     const P = fase === 'tutorial' && passo >= 0 ? PASSOS[passo] : null;
     if (P && P.final)  { rot.textContent = 'Começar';   btn.disabled = !slots.every(Boolean) || !ativo; }
     else if (P)        { rot.textContent = 'Continuar'; btn.disabled = !liberado || !ativo; }
-    else               { rot.textContent = 'Próximo';   btn.disabled = !slots.every(Boolean) || !ativo; }
+    else               { rot.textContent = 'Próximo';   btn.disabled = !slots.every(Boolean) || !ativo || voltandoAnim; }
     $('btn-repetir').style.display = (P && !P.final && P.fx && ativo && !animando) ? 'inline-block' : 'none';
   }
 
@@ -465,8 +474,8 @@
     });
   }
   function limparEfeitos() {
-    document.querySelectorAll('.seta, .onda, .voando').forEach(e => e.remove());
-    emVoo = null;
+    document.querySelectorAll('.seta, .onda, .voando, .passo-num').forEach(e => e.remove());
+    emVoo = null; voltando.clear(); voltandoAnim = false;
     maoEsconder();
   }
 
@@ -519,16 +528,6 @@
     return fila;
   }
 
-  function embaralhar() {
-    const anterior = ordem.join();
-    let nova;
-    do {
-      nova = ORDEM_BANDEJA.slice();
-      for (let i = nova.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [nova[i], nova[j]] = [nova[j], nova[i]]; }
-    } while (nova.join() === anterior);
-    ordem = nova; embaralhando = true;
-  }
-
   function arred(ms) { return Math.round(ms / 100) / 10; }   // segundos com 1 casa
 
   function registrarRodada(completa) {
@@ -538,7 +537,6 @@
       completa,
       grupo1: slots.slice(0, 4),   // número da carta em cada posição (null = vazio)
       grupo2: slots.slice(4, 8),
-      ordem_bandeja: ordem.slice(),   // ordem em que as cartas estavam na bandeja nesta rodada
       tempo_rodada_s: arred(agora - rodadaIniciadaEm),
       tempo_total_s: arred(agora - iniciadoEm)
     };
@@ -558,7 +556,6 @@
         tutorial: true,
         grupo1: slots.slice(0, 4),
         grupo2: slots.slice(4, 8),
-        ordem_bandeja: ordem.slice(),
         cartas_exemplo: EXEMPLO.map(e => e[0]),    // cartas colocadas pelo sistema (demonstração)
         tempo_s: arred(Date.now() - tutIniciadoEm)
       }
@@ -570,7 +567,6 @@
     fase = 'tutorial'; passo = -1; ativo = true; animando = false; convidar = false; liberado = false;
     slots = new Array(8).fill(null); selecionada = null; travadas.clear();
     selos.grupo1 = selos.grupo2 = false;
-    ordem = ORDEM_BANDEJA.slice();
     tutIniciadoEm = Date.now();
     $('lbl-tempo').style.visibility = 'hidden';
     mostrar('tela-teste');
@@ -588,6 +584,31 @@
     document.querySelectorAll('.grupo').forEach(g => [...g.querySelectorAll('.slot')].forEach((sl, k) => {
       sl.dataset.n = k + 1; sl.style.animationDelay = (k * 700) + 'ms'; sl.classList.add('acende', 'cont');
     }));
+  }
+
+  // mostra os dois toques: 1) no cartão  2) no espaço vazio (duas vezes e para)
+  async function fxToque(id) {
+    for (let ciclo = 0; ciclo < 2; ciclo++) {
+      const carta = ordem.find(n => !slots.includes(n));
+      const idx = slots.findIndex(x => !x);
+      if (!carta || idx < 0) return;
+      const cel = celulas()[ordem.indexOf(carta)];
+      const sl = document.querySelectorAll('.slot')[idx];
+      const num = (el, n) => {
+        const r = el.getBoundingClientRect();
+        const d = document.createElement('div'); d.className = 'passo-num'; d.textContent = n;
+        d.style.left = (r.left + 6) + 'px'; d.style.top = (r.top + 6) + 'px';
+        document.body.appendChild(d);
+        tocar(r.left + r.width / 2, r.top + r.height / 2);
+      };
+      cel.classList.add('sel'); num(cel, '1');                    // 1) clique no cartão
+      if (!(await esperar(1400, id))) return;
+      sl.classList.add('alvo'); num(sl, '2');                     // 2) clique no espaço vazio
+      if (!(await esperar(1700, id))) return;
+      document.querySelectorAll('.passo-num').forEach(e => e.remove());
+      cel.classList.remove('sel'); sl.classList.remove('alvo');
+      if (!(await esperar(600, id))) return;
+    }
   }
 
   // demonstração de um par de cartas: a seta pega o cartão, leva até o espaço e solta
@@ -688,8 +709,7 @@
     travadas.clear(); selos.grupo1 = selos.grupo2 = false; convidar = false;
     slots = new Array(8).fill(null);
     selecionada = null; rodada = 1;
-    embaralhar();
-    iniciadoEm = rodadaIniciadaEm = Date.now();
+    iniciadoEm = rodadaIniciadaEm = ultimaFinalizacaoEm = Date.now();
     legendaOff();
     $('lbl-tempo').style.visibility = MOSTRAR_TEMPO ? 'visible' : 'hidden';
     ajustarTamanho();
@@ -698,14 +718,48 @@
     timerId = setInterval(atualizarTempo, 250);
   }
 
-  function proximo() {
-    if (!ativo || !slots.every(Boolean)) return;
+  async function proximo() {
+    if (!ativo || voltandoAnim || !slots.every(Boolean)) return;
     registrarRodada(true);
+    ultimaFinalizacaoEm = Date.now();    // grupo finalizado (clique em Próximo): reinicia a contagem dos 2 minutos
+    const id = ++execId;
     rodada++;
-    slots = new Array(8).fill(null);
     selecionada = null;
-    embaralhar();
+    await voltarCartas(id);
+    if (id !== execId || !ativo) return;
     rodadaIniciadaEm = Date.now();
+    render();
+  }
+
+  // as cartas dos grupos voam de volta para os seus lugares na bandeja
+  async function voltarCartas(id) {
+    voltandoAnim = true;
+    const origem = [];
+    slots.forEach((carta, idx) => {
+      if (!carta) return;
+      const r = document.querySelectorAll('.slot')[idx].getBoundingClientRect();
+      origem.push({ carta, r });
+    });
+    const clones = origem.map(({ carta, r }, k) => {
+      const c = criarImg(carta); c.className = 'voando';
+      c.style.left = r.left + 'px'; c.style.top = r.top + 'px'; c.style.width = r.width + 'px'; c.style.height = r.height + 'px';
+      c.style.transition = 'left .75s ease-in-out ' + (k * 70) + 'ms, top .75s ease-in-out ' + (k * 70) + 'ms';
+      document.body.appendChild(c);
+      return c;
+    });
+    origem.forEach(o => voltando.add(o.carta));
+    slots = new Array(8).fill(null);
+    render();                                           // grupos esvaziam; os lugares da bandeja seguem vazios até as cartas chegarem
+    const cels = document.querySelectorAll('#bandeja .cel');
+    void document.body.offsetWidth;
+    origem.forEach(({ carta }, k) => {
+      const d = cels[ordem.indexOf(carta)].getBoundingClientRect();
+      clones[k].style.left = d.left + 'px'; clones[k].style.top = d.top + 'px';
+    });
+    await pausa(750 + origem.length * 70 + 120);
+    clones.forEach(c => c.remove());
+    if (id !== execId || !ativo) return;
+    voltando.clear(); voltandoAnim = false; chegando = true;
     render();
   }
 
@@ -743,7 +797,8 @@
     const el = $('lbl-tempo');
     el.textContent = m + ':' + String(s).padStart(2, '0');
     el.classList.toggle('fim', restante <= 30);
-    if (restante <= 0) encerrar('tempo_esgotado');
+    if (restante <= 0) { encerrar('tempo_esgotado'); return; }
+    if ((Date.now() - ultimaFinalizacaoEm) / 1000 >= LIMITE_SEM_FINALIZAR_S) encerrar('sem_finalizar_grupo_2min');
   }
 
   /* =====================  EVENTOS  ===================== */
